@@ -33,9 +33,21 @@
       </div>
       <div class="collapse navbar-collapse navbar-ex1-collapse">
         <ul class="nav navbar-nav side-nav">
-          <li id="summary" onclick="showSummary()"><a href="/"><i class="fa fa-list-ul"></i> Summary</a></li>
-          <li id="analytics" onclick="showAnalytics()"><a href="/"><i class="fa fa-tasks"></i> Analytics</a></li>
+          <li id="summary" onclick="showSummary()">
+          <div class="row">
+        <div class="col-md-8">
+          <div class="panel panel-primary">
+            <div class="panel-heading">
+              <h3 class="panel-title"><i class="fa fa-bar-chart-o"></i> Summary</h3>
+            </div>
+            <div class="panel-body">
+              <div id="shieldui-grid1"></div>
+            </div>
+          </div>
+        </div>
+      <div></li>
           <div id="data"></div>
+          <li id="analytics" onclick="showAnalytics()"><a href=""><i class="fa fa-tasks"></i> Analytics</a></li>
           <div id="statistics"></div>
         </ul>
         <ul class="nav navbar-nav navbar-right navbar-user">
@@ -71,6 +83,10 @@
 
   <script src="js/background.js"></script>
   <script>
+    var lastTimeFormatted;
+    var averageSpeed;
+    var indexOfAddress;
+    var addressOfMarker;
     var map;
     var insertedMarkers = []; 
     var speedText;
@@ -78,6 +94,7 @@
     var markers = [];
     var prevInfoWindow;
     var lastTime;
+    var lastUpdatedTime;
       function initialize() {
       var mapProp = {
         center:new google.maps.LatLng(38.033554,-78.507980),
@@ -185,7 +202,7 @@
     }
 
     function getLastUpdatedTime(address){
-        var lastUpdatedTime;
+
         var timeList;
         var addressesRef = new Firebase( 'https://hackuva.firebaseio.com/address' );
         addressesRef.once( 'value' , function(snapshot) {
@@ -222,18 +239,7 @@
       document.getElementById( "summary" ).className = "";
 
       document.getElementById( "statistics" ).innerHTML = '\
-      <div class="row">\
-        <div class="col-md-8">\
-          <div class="panel panel-primary">\
-            <div class="panel-heading">\
-              <h3 class="panel-title"><i class="fa fa-bar-chart-o"></i> Internet Speed Over Time</h3>\
-            </div>\
-            <div class="panel-body">\
-              <div id="shieldui-chart1"></div>\
-            </div>\
-          </div>\
-        </div>\
-      <div>\
+\
       ';
       document.getElementById( "data" ).innerHTML = "";
     }
@@ -241,22 +247,18 @@
     function showSummary(latLng) {
       document.getElementById( "analytics" ).className = "";
       document.getElementById( "summary" ).className = "selected";
-
-      var indexOfAddress = latitudePoint.indexOf(latLng.center.lat());
-      var addressOfMarker = addressess[indexOfAddress];
-      var averageSpeed = averages[indexOfAddress];
+      console.log(latLng);
+      indexOfAddress = latitudePoint.indexOf(latLng.center.lat());
+      console.log(indexOfAddress);
+      addressOfMarker = addressess[indexOfAddress];
+      console.log(addressOfMarker);
+      averageSpeed = averages[indexOfAddress];
+      console.log(averageSpeed);
       getLastUpdatedTime(addressOfMarker);
 
-      var lastTimeFormatted = getFormattedTime(lastTime);
+      lastTimeFormatted = getFormattedTime(lastTime);
 
-      stats = document.getElementById( "data" );
-      stats.innerHTML = '\
-      <ul>\
-        <li>Last Updated:' + lastTimeFormatted + '</li>\
-        <li>Average Speed:' + averageSpeed +' Mbps</li>\
-      </ul>\
-      '
-      document.getElementById( "statistics" ).innerHTML = "";
+      changeValues(averageSpeed);
     }
 
     var interval = setInterval(function () {
@@ -325,11 +327,26 @@
 
     }, 5000);
 
-  </script>
-  <script type="text/javascript">
-    jQuery(function ($) {
-      var speed = [12, 43, 34, 22, 12, 33, 4, 17, 22, 34, 54, 67],
-      var summary = 
+    function changeValues(avgSpeed) {
+      jQuery(function ($) {
+      var addressesRef = new Firebase( 'https://hackuva.firebaseio.com/address' );
+      var alltimes;
+      var allspeeds;
+      addressesRef.once( 'value' , function(snapshot) {
+          if( snapshot.hasChild(addressOfMarker) ) {
+            allspeeds = snapshot.child(address).child('allSpeeds').val();
+            alltimes = snapshot.child(address).child('allTimes').val();
+            // oldTimeList = snapshot.child(globalAddress).child('times').val();
+            // lastTime = oldTimeList[oldTimeList.length() - 1];
+            // console.log( oldTimeList );
+          }
+        });
+
+      console.log('avgSpeed');
+      console.log(avgSpeed);
+
+      var summary = [{"Last Updated": lastTimeFormatted, "Average Speed": avgSpeed}]
+      console.log(lastTimeFormatted);
 
       $("#shieldui-chart1").shieldChart({
         theme: "dark",
@@ -344,13 +361,13 @@
         dataSeries: [{
           seriesType: "area",
           collectionAlias: "Internet speed",
-          data: speed
+          data: allspeeds
         }]
       });
 
       $("#shieldui-grid1").shieldGrid({
           dataSource: {
-          data: entities
+          data: summary
         },
         sorting: {
           multiple: true
@@ -358,12 +375,12 @@
         rowHover: false,
         paging: false,
         columns: [
-          { field: "Entity", width: "800px", title: "Entity" },
-          { field: "Type", title: "Type" },
-          { field: "Relevance", title: "Relevance"},
+          { field: "Last Updated", title: "Last Updated" },
+          { field: "Average Speed", title: "Average Speed" }
         ]
       });
     });
+    }
   </script>
 </body>
 </html>
