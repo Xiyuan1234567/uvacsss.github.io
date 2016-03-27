@@ -4,14 +4,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>SpeedBump</title>
+  <title>Need for Speed</title>
   <link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.min.css" />
   <link rel="stylesheet" type="text/css" href="font-awesome/css/font-awesome.min.css" />
   <link rel="stylesheet" type="text/css" href="css/local.css" />
+  <!-- you need to include the shieldui css and js assets in order for the charts to work -->
+  <link rel="stylesheet" type="text/css" href="http://www.shieldui.com/shared/components/latest/css/light-bootstrap/all.min.css" />
+  <link id="gridcss" rel="stylesheet" type="text/css" href="http://www.shieldui.com/shared/components/latest/css/dark-bootstrap/all.min.css" />
   <script src="http://code.jquery.com/jquery-2.0.3.js"></script>
   <script src='https://cdn.firebase.com/js/client/2.2.1/firebase.js'></script>
   <script src="http://maps.googleapis.com/maps/api/js?sensor=false&extension=.js&output=embed"></script>
   <script type="text/javascript" src="bootstrap/js/bootstrap.min.js"></script>
+  <script type="text/javascript" src="http://www.shieldui.com/shared/components/latest/js/shieldui-all.min.js"></script>
+  <script type="text/javascript" src="http://www.prepbootstrap.com/Content/js/gridData.js"></script>
 </head>
 <body>
 
@@ -24,12 +29,13 @@
           <span class="icon-bar"></span>
           <span class="icon-bar"></span>
         </button>
-        <a class="navbar-brand" href="/">SpeedBump</a>
+        <a class="navbar-brand" href="/">Need for Speed</a>
       </div>
       <div class="collapse navbar-collapse navbar-ex1-collapse">
         <ul class="nav navbar-nav side-nav">
-          <li id="summary" class="selected"><a href="/"><i class="fa fa-list-ul"></i> Summary</a></li>
-          <li id="analytics"><a href=""><i class="fa fa-tasks"></i> Analytics</a></li>
+          <li id="summary" onclick="showSummary()"><a href="/"><i class="fa fa-list-ul"></i> Summary</a></li>
+          <li id="analytics" onclick="showAnalytics()"><a href="/"><i class="fa fa-tasks"></i> Analytics</a></li>
+          <div id="data"></div>
           <div id="statistics"></div>
         </ul>
         <ul class="nav navbar-nav navbar-right navbar-user">
@@ -71,6 +77,7 @@
     var LatSpeed = {};
     var markers = [];
     var prevInfoWindow;
+    var lastTime;
       function initialize() {
       var mapProp = {
         center:new google.maps.LatLng(38.033554,-78.507980),
@@ -162,75 +169,94 @@
         var marker = new google.maps.Circle({
                   center:pos,
                   radius:20,
-                  strokeColor:color,
+                  strokeColor:'green',
                   strokeOpacity:0.8,
                   strokeWeight:2,
-                  fillColor:color,
+                  fillColor:'green',
                   fillOpacity:0.4
          });
         infowinClosed = false;
         google.maps.event.addListener(marker, 'click', function() { 
-            if(infowinClosed == false){
-                infowin.close(map);
-                infowinClosed = true;
+            showSummary(marker);
 
-            }
-            else{
-                infowin.open(map);
-                infowClosed = false;
-
-            }
-           //  if( prevInfoWindow ) {
-           //     prevInfoWindow.close();
-           //  }
-           
-           // prev_infowindow = infowin;
-           // infowin.open(map, marker);
         }); 
         infowin.open(map);
+        return marker;  
+    }
 
-        var lastTime;
-
+    function getLastUpdatedTime(address){
+        var lastUpdatedTime;
+        var timeList;
         var addressesRef = new Firebase( 'https://hackuva.firebaseio.com/address' );
         addressesRef.once( 'value' , function(snapshot) {
-          if( snapshot.hasChild(globalAddress) ) {
-            console.log(snapshot.child(globalAddress));
-            oldTimeList = snapshot.child(globalAddress).child('times').val();
-            lastTime = oldTimeList[oldTimeList.length() - 1];
-            console.log( oldTimeList );
+          if( snapshot.hasChild(address) ) {
+            timeList = snapshot.child(address).child('times').val();
+            lastTime = timeList[timeList.length - 1];
+            console.log(lastTime);
+            // oldTimeList = snapshot.child(globalAddress).child('times').val();
+            // lastTime = oldTimeList[oldTimeList.length() - 1];
+            // console.log( oldTimeList );
           }
-        })
-
-        var infoWindow = new google.maps.InfoWindow({
-          content: '<p>Last updated: ' + lastTime + '</p>' + '<button onclick="showAnalytics();">More Info</button>'
         });
 
-        google.maps.event.addListener( marker , 'click' , function(ev){
-          infoWindow.setPosition(ev.latLng);
-          infoWindow.open(map);
-        });
 
-        google.maps.event.addListener( map, "click", function(ev) {
-          infoWindow.close();
-        });
-
-        return marker;
 
     }
 
-    function showAnalytics() {
-      getPoints();
+    function getFormattedTime(unixTime){
+        var date = new Date(unixTime*1000);
+        // Hours part from the timestamp
+        var hours = date.getHours();
+        // Minutes part from the timestamp
+        var minutes = "0" + date.getMinutes();
+        // Seconds part from the timestamp
+        var seconds = "0" + date.getSeconds();
 
-      document.getElementById( "analytics" ).className = " selected";
+        var formattedTime = hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2);
+        return formattedTime;
+    }
+
+    function showAnalytics() {
+
+      document.getElementById( "analytics" ).className = "selected";
       document.getElementById( "summary" ).className = "";
 
-      stats = document.getElementById( "statistics" );
+      document.getElementById( "statistics" ).innerHTML = '\
+      <div class="row">\
+        <div class="col-md-8">\
+          <div class="panel panel-primary">\
+            <div class="panel-heading">\
+              <h3 class="panel-title"><i class="fa fa-bar-chart-o"></i> Internet Speed Over Time</h3>\
+            </div>\
+            <div class="panel-body">\
+              <div id="shieldui-chart1"></div>\
+            </div>\
+          </div>\
+        </div>\
+      <div>\
+      ';
+      document.getElementById( "data" ).innerHTML = "";
+    }
+
+    function showSummary(latLng) {
+      document.getElementById( "analytics" ).className = "";
+      document.getElementById( "summary" ).className = "selected";
+
+      var indexOfAddress = latitudePoint.indexOf(latLng.center.lat());
+      var addressOfMarker = addressess[indexOfAddress];
+      var averageSpeed = averages[indexOfAddress];
+      getLastUpdatedTime(addressOfMarker);
+
+      var lastTimeFormatted = getFormattedTime(lastTime);
+
+      stats = document.getElementById( "data" );
       stats.innerHTML = '\
       <ul>\
-        <li>Last Updated: 7:36pm</li>\
-        <li>Average Speed: 23.6Mbps</li>\
+        <li>Last Updated:' + lastTimeFormatted + '</li>\
+        <li>Average Speed:' + averageSpeed +' Mbps</li>\
       </ul>\
       '
+      document.getElementById( "statistics" ).innerHTML = "";
     }
 
     var interval = setInterval(function () {
@@ -299,6 +325,45 @@
 
     }, 5000);
 
+  </script>
+  <script type="text/javascript">
+    jQuery(function ($) {
+      var speed = [12, 43, 34, 22, 12, 33, 4, 17, 22, 34, 54, 67],
+      var summary = 
+
+      $("#shieldui-chart1").shieldChart({
+        theme: "dark",
+
+        primaryHeader: {
+          text: "Internet Speed Changes Over Time"
+        },
+        exportOptions: {
+          image: false,
+          print: false
+        },
+        dataSeries: [{
+          seriesType: "area",
+          collectionAlias: "Internet speed",
+          data: speed
+        }]
+      });
+
+      $("#shieldui-grid1").shieldGrid({
+          dataSource: {
+          data: entities
+        },
+        sorting: {
+          multiple: true
+        },
+        rowHover: false,
+        paging: false,
+        columns: [
+          { field: "Entity", width: "800px", title: "Entity" },
+          { field: "Type", title: "Type" },
+          { field: "Relevance", title: "Relevance"},
+        ]
+      });
+    });
   </script>
 </body>
 </html>
